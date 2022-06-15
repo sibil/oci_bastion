@@ -1,70 +1,94 @@
-# Easy OCI Bastion access from commandline
-Scripts to easily connect to OCI private servers or private OKE clusters (Kubernetes) using Bastion Service.
+# OCI Bastion access from commandline
 
-These scripts allows to create bastion session from the command line.
+Scripts to easily connect to OCI private servers or private OKE clusters (Kubernetes) using Bastion Service without visiting OCI console.
 
-## Prerequisites
-- Setup OCI cli.
-- Install jq - To parse JSON.
 
+- [Accessing Private OKE Cluster](#accessing-private-oke-cluster)
+  - [Prerequisites:](#prerequisites)
+  - [Configurations](#configurations)
+  - [Create bastion session](#create-bastion-session)
+  - [Create the tunnel](#create-the-tunnel)
+  - [Access OKE Cluser](#access-oke-cluster)
+- [Accessing Private VM](accessing-private-vm)
+
+## Accessing Private OKE Cluster
+
+### Prerequisites
+1. Setup OCI cli.
+2. Install jq. `sudo apt install -y jq (Ubuntu) /  yum install jq -y (CentOS)` It is used to parse JSON.
+3. Ensure that the required ports(6443 or 22) are opened via Security Lists or Network Security Groups from the Bastion network to the target cluster/machine.
+
+#### Configurations
 ```
-In ubunutu, sudo apt install -y jq
-
-In CentOS, yum install jq -y
-```
-
 Fill these 3 variables in create_bastion.sh
+BASTION= Bastion OCID
+PUBKEY= This is the absolute path to your PUBLIC KEY
+TARGET_IP= Kubernetes Private Endpoint API IP. You can find this IP from OKE cluster kube config file or OCI Console. 
+TARGET_PORT=6443 <-- default port for k8s API endpoint
+```
+Open kube config file and look for this line `server: https://<K8S_API_ENDPOINT_IP_FROM_OCI>:6443` 
 
-- `BASTION=<OCID_OF_BASTION_FROM_OCI>`
+```
+chmod +x create_bastion.sh # Make it executable.
+```
 
-- `PUBKEY=<LOCAL_PUB_KEY_LOCATION>` This is the absolute path to your PUBLIC KEY
+#### Create bastion session
 
-- `TARGET_IP=<K8S_API_ENDPOINT_IP_FROM_OCI>` You can find this IP from OKE cluster kube config file. 
-
-Open kube config file and look for the line with server:
-
-`server: https://<K8S_API_ENDPOINT_IP_FROM_OCI>:6443` 
-
-`TARGET_PORT=6443`
-
-*Use 6443 for OKE clusters, For SSH use 22 or custom SSH port of the server.*
-
-Ensure that the required ports are opened via Security Lists or Network Security Groups.
-
-`chmod +x create_bastion.sh`
-
-### Run the below command to create bastion session:
-
-`./create_bastion.sh`
+Run `./create_bastion.sh` - It creates a bastion session with 3 hours validity. Validity can be configured via `SESSION_TTL` variable, defaults to 3 hours(10800). bastion session is written to a file bastion_session_id - This can be configured by setting the TMP_FILE variable.
 
 Replace YOUR_PRIVATE_KEY_LOCATION in get_bastion_details.sh with the absolute path to your PRIVATE KEY
 
-`chmod +x  get_bastion_details.sh`
+```
+#get_bastion_details.sh
+YOUR_PRIVATE_KEY_LOCATION=YOUR_PRIVATE_KEY
+```
 
-### Run the below command to connect to the bastion session
+`chmod +x  get_bastion_details.sh` # Make it executable.
 
-Sometimes the bastion session creation takes a few seconds, you can run this command till you get connected.
+### Create the tunnel
 
-./create_bastion.sh script is creating bastion session with 3 hours validity, Within this time period, we can re-run ./get_bastion_details.sh - no need to 
+Run `./get_bastion_details.sh`
 
-run ./create_bastion.sh.
+Note:
+- Bastion session creation takes a few seconds, you can run this command til you get connected.
+- Input to this command is TMP_FILE, which contains the Bastion session ID. 
+- Session validity is 3 hours by default. Within this time period, we can re-run ./get_bastion_details.sh to connect to the tunnel - no need to run ./create_bastion.sh.
+- After a successful connection terminal is unusable, you can either make it a background process(crtl-Z and bg command) or continue working on another screen window.
 
-`./get_bastion_details.sh`
+### Access OKE cluster
 
+After a successful connection terminal is unusable, you can either make it a background process(crtl-Z and bg command) or continue working on another screen window.
 
-*Open another terminal*
-
-### For OKE cluster access
-Edit kube config file to replace the k8s api endpoint IP with local tunnel.
-
-This step is required only once.
-
+**Edit kube config file to replace the k8s api endpoint IP with local tunnel.** This step is required only once.
 `server: https://127.0.0.1:6443`
 
-run kubectl command to test connectivity
+Run kubectl command to test connectivity
 
-### For SSH access to private server
+## Accessing Private VM
 
-SSH via local port 6443
+```
+Fill these 3 variables in create_bastion.sh
+BASTION= Bastion OCID
+PUBKEY= This is the absolute path to your PUBLIC KEY
+TARGET_IP= Private IP of the VM
+TARGET_PORT=22 <-- SSH port
+```
 
+```
+chmod +x create_bastion.sh # Make it executable.
+Run `./create_bastion.sh`
+```
+
+```
+#get_bastion_details.sh -> YOUR_PRIVATE_KEY_LOCATION=YOUR_PRIVATE_KEY
+chmod +x  get_bastion_details.sh # Make it executable.
+#Create the tunnel
+Run `./get_bastion_details.sh`
+# After a successful connection terminal is unusable, you can either make it a background process(crtl-Z and bg command) or continue working on another screen window.
+```
+
+Final step: SSH via tunnel
+```
+#SSH via local port 6443 from another shell
 ssh -p 6443 user@127.0.0.1 -i private_key
+```
